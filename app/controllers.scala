@@ -1,5 +1,6 @@
 package controllers
 
+import _root_.klout.{KShow, KScore, KUser}
 import play._
 import play.cache.Cache
 import play.mvc._
@@ -148,5 +149,24 @@ object OAuth extends Controller {
         Action(callback.callback(provider, socialProfile))
     }
 
+}
+
+
+object Klout extends Controller {
+    implicit val KLOUT_API_KEY: String = "bfs2g93vm5dn7qr72ju7baxq"
+
+    /**
+     * Gets the score of a user.
+     *
+     */
+    def score(name: String) = {
+      val user = KUser("mandubian")
+      Json(""" {"username": "%s", "twitter_name": "%s", "score":"%s"}""".format(user.name, user.twitter_screen_name, user.kscore))
+    }
+
+    def show(name: String) = {
+      val user = KUser("mandubian") :: KShow
+      Json(""" {"username": "%s", "twitter_name": "%s", "score":"%s"}""".format(user.name, user.twitter_screen_name, user.score))
+    }
 }
 
