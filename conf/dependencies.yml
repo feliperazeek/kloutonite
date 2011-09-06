@@ -3,3 +3,20 @@
 require:
     - play
     - play -> scala 0.9.1
+    - org.scribe -> scribe 1.1.2
+    - org.twitter4j -> twitter4j-core 2.2.1
+    - com.google.code.linkedinapi -> linkedin-j 0.1
+    - com.restfb -> restfb 1.6.5
+
+repositories:
+    - twitter4j:
+        type: iBiblio
+        root: "http://twitter4j.org/maven2"
+        contains:
+            - org.twitter4j -> *
+
+    - linkedin-j:
+        type: iBiblio
+        root: "http://oauth-repo.googlecode.com/svn/trunk/mavenrepo/maven-missing/"
+        contains:
+            - com.google.code.linkedinapi -> *
