@@ -8,3 +8,4 @@ dist
 lib
 eclipse
 commands.pyc
+*.iml
