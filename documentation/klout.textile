@@ -1,8 +1,68 @@
 h1. Klout Scala API
 
-h2. <a>@Kuser@ = most basic Klout data (username:String, score:Float) </a>
+h2. Usage
+
+Don't forget to:
+* Add the key "klout.api" in your conf/application.conf
+
+bc. klout.api = xxxxxxxxxxxxxxxxxxxxxxxx
+
+* In your controller, add the following line:
+
+bc.. object Klout extends Controller {
+implicit val KLOUT_API_KEY: String = play.Play.configuration.getProperty("klout.apiKey")
+...
+
+p. 
+
+h2. Predefined User Types
+
+bq. Keep in mind that as soon as you create a KUser/KFullUser, it is immediately loaded from Klout
+
+h3. <a name="kuser">KUser</a>
+
+KUser is the most basic Klout data you can retrieve and provides 2 fields:
+* @name:String@
+* @score:Float@
+
+*Code Sample*
 
 bc.. val user = KUser("your_twitter_nick")
 assert(user.name == "your_twitter_nick")
 assert(user.score != 0.0F)
+
+p. 
+
+==<br/>==
+
+h3. <a name="kfulluser">KFullUser</a>
+
+KFullUser is the complete Klout user with all information:
+* @name:string@
+* @score:Float@
+* @fullscore:Score@ where:
+
+bc.. class Score (kscore:Float, slope: Float, description: String,
+                  kclass_id:Int, kclass: String, kclass_description: String,
+                  kscore_description: String, network_score: Float, amplification_score: Float,
+                  true_reach: Int, delta_1day: Float, delta_5day: Float)
+
+p. 
+* @topics:List[String]@
+* @influencers:List[KBase]@
+* @influencees:List[KBase]@ where :
+
+bc. case class KBase(val name: String, var score: Float = 0.0F)
+
+*Code Sample*
+
+bc.. val user = KFullUser("your_twitter_nick")
+assert(user.name == "your_twitter_nick")
+assert(user.score != 0.0)
+assert(user.fullscore != null)
+assert(user.topics!= null)
+assert(user.influencers!= null)
+assert(user.influencees!= null)
+
+p. 
 
