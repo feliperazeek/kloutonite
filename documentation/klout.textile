@@ -1,0 +1,8 @@
+h1. Klout Scala API
+
+h2. <a>@Kuser@ = most basic Klout data (username:String, score:Float) </a>
+
+bc.. val user = KUser("your_twitter_nick")
+assert(user.name == "your_twitter_nick")
+assert(user.score != 0.0F)
+

@@ -153,19 +153,19 @@ object OAuth extends Controller {
 
 
 object Klout extends Controller {
-    implicit val KLOUT_API_KEY: String = "bfs2g93vm5dn7qr72ju7baxq"
+    implicit val KLOUT_API_KEY: String = play.Play.configuration.getProperty("klout.apiKey")
 
     /**
      * Gets the score of a user.
      *
      */
     def score(name: String) = {
-      val user = KUser("mandubian")
+      val user = KUser(name)
       Json(""" {"name": "%s", "score":"%s"}""".format(user.name, user.score))
     }
 
-    def show(name: String) = {
-      val user = KUser("mandubian") :: KShow
+    def fullscore(name: String) = {
+      val user = KUser(name) :: KFullScore
       Json(""" {"username": "%s", "fullscore":"%s"}""".format(user.name, user.fullscore))
     }
 
@@ -175,12 +175,12 @@ object Klout extends Controller {
     }
 
     def influencers(name: String) = {
-      val user = KUser(name) :: KInfluencedBy
+      val user = KUser(name) :: KInfluencers
       Json(""" {"username": "%s", "influencers":"%s"}""".format(user.name, user.influencers))
     }
 
     def influencees(name: String) = {
-      val user = KUser(name) :: KInfluenceOf
+      val user = KUser(name) :: KInfluencees
       Json(""" {"username": "%s", "influencees":"%s"}""".format(user.name, user.influencees))
     }
 
@@ -192,12 +192,13 @@ object Klout extends Controller {
 
     def dynamic(name: String) = {
       var user = KUser(name)
-      val score = user.score
+      val user2 = user :: KTopics
+      val score = user2.score
 
-      val topics = (user :: KTopics).topics
-      val influencers = (user :: KInfluencedBy).influencers
-      val influencees = (user :: KInfluenceOf).influencees
-      val fullscore = (user :: KShow).fullscore
+      val topics = user2.topics
+      val influencers = (user :: KInfluencers).influencers
+      val influencees = (user :: KInfluencees).influencees
+      val fullscore = (user :: KFullScore).fullscore
 
       Json(""" {"username": "%s", "fullscore":"%s", "topics":"%s", "influencers":"%s", "influencees":"%s"}""".format(user.name, fullscore, topics, influencers, influencees))
     }
