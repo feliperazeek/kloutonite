@@ -164,7 +164,7 @@ object Klout extends Controller {
       Json(""" {"name": "%s", "score":"%s"}""".format(user.name, user.score))
     }
 
-    def fullscore(name: String) = {
+    /*def fullscore(name: String) = {
       val user = KUser(name) :: KFullScore
       Json(""" {"username": "%s", "fullscore":"%s"}""".format(user.name, user.fullscore))
     }
@@ -201,6 +201,6 @@ object Klout extends Controller {
       val fullscore = (user :: KFullScore).fullscore
 
       Json(""" {"username": "%s", "fullscore":"%s", "topics":"%s", "influencers":"%s", "influencees":"%s"}""".format(user.name, fullscore, topics, influencers, influencees))
-    }
+    }         */
 }
 

@@ -20,11 +20,11 @@ abstract class KApi {
     val resp = WS.url(url).get()
     resp.getStatus.intValue() match {
       case 200 => parser(resp)
-      case _ => // TODO
+      case _ => Nil // TODO
     }
   }
 
-  protected[klout] def loadAndParses(patternUrl:String, format:Symbol = 'json, names:String*)
+  protected[klout] def loadAndParses(patternUrl:String, format:Symbol = 'json, names:Seq[String])
                                    (parser: (JsonObject) => KBase)
                                    (implicit KLOUT_API_KEY: String):List[KBase] = {
     val url = patternUrl.format(format.name, KLOUT_API_KEY, names.mkString(","))
@@ -38,23 +38,23 @@ abstract class KApi {
 
         val retUsers = new ListBuffer[KBase]
         val users = json.getAsJsonObject().get("users").getAsJsonArray
-        for(i <- 0 to users.size){
+        for(i <- 0 until users.size){
           retUsers += parser(users.get(i).getAsJsonObject)
         }
         retUsers.toList
-      case _ => // TODO
+      case _ => Nil // TODO
     }
   }
 
   /**
    * the protected function that can't be called from outside
    */
-  protected[klout] def load(names:String*)(implicit KLOUT_API_KEY:String):List[KBase]
+  protected[klout] def load(names:Seq[String])(implicit KLOUT_API_KEY:String):List[KBase] = Nil
 
   /**
    * the unprotected function that can be called from outside to force reload all data
    */
-  protected[klout] def reload(names:String*)(implicit KLOUT_API_KEY:String):List[KBase]
+  protected[klout] def reload(names:Seq[String])(implicit KLOUT_API_KEY:String):List[KBase] = Nil
 }
 
 /**
@@ -62,12 +62,12 @@ abstract class KApi {
  *
  * @author Pascal Voitot [@_mandubian]
  */
-class KDefault extends KApi {
-  override def load(names:String*)(implicit KLOUT_API_KEY:String):List[KBase] = Nil
-  override def reload(names:String*)(implicit KLOUT_API_KEY:String):List[KBase] = Nil
+abstract class KDefault(val names:Seq[String]) extends KApi {
+  override def load(names:Seq[String])(implicit KLOUT_API_KEY:String):List[KBase] = Nil
+  override def reload(names:Seq[String])(implicit KLOUT_API_KEY:String):List[KBase] = Nil
 }
 
-case class KBase(val name: String, var score: Float = 0.0F)
+case class KBase(val name: String, var score: Float = 0.0F) extends KDefault(Seq(name))
 
 /**
  * Dynamic mixin trick directly inspired from http://stackoverflow.com/questions/3893274/scala-and-traits-on-object-instances
@@ -91,7 +91,9 @@ case class KBase(val name: String, var score: Float = 0.0F)
  *
  * @author Pascal Voitot [@_mandubian]
  */
-class Mixin[MixedClass <: KDefault](val obj: MixedClass) extends KDefault
+class Mixin[MixedClass <: KDefault](val obj: MixedClass) extends KDefault(obj.names) {
+  def mixload(implicit KLOUT_API_KEY: String):List[KBase] = super.load(obj.names)
+}
 
 trait DynamicMixinCompanion[MixinTrait] {
   implicit def baseObject[MixedClass <: KDefault](o: Mixin[MixedClass] with MixinTrait): MixedClass = o.obj
@@ -118,8 +120,8 @@ trait KScore extends KApi {
     KBase(name, score)
   }
 
-  abstract override def load(names:String*)(implicit KLOUT_API_KEY:String):List[KBase] = { if(!isLoaded) loadAndParses(patternUrl = URL_SCORE, names = names)(parser); super.load }
-  abstract override def reload(names:String*)(implicit KLOUT_API_KEY:String):List[KBase] = { loadAndParse(patternUrl = URL_SCORE, names = names)(parser); super.load }
+  abstract override def load(names:Seq[String])(implicit KLOUT_API_KEY:String):List[KBase] = { if(!isLoaded) loadAndParses(patternUrl = URL_SCORE, names = names)(parser); super.load(names) }
+  abstract override def reload(names:Seq[String])(implicit KLOUT_API_KEY:String):List[KBase] = { loadAndParses(patternUrl = URL_SCORE, names = names)(parser); super.load(names) }
 }
 
 /**
@@ -128,7 +130,7 @@ trait KScore extends KApi {
  * @author Pascal Voitot [@_mandubian]
  */
 object KScore extends DynamicMixinCompanion[KScore] {
-  override def ::[T <: KDefault](o: T)(implicit KLOUT_API_KEY: String):Mixin[T] with KScore = { val ret = new Mixin(o) with KScore; ret.load; ret }
+  override def ::[T <: KDefault](o: T)(implicit KLOUT_API_KEY: String):Mixin[T] with KScore = { val ret = new Mixin(o) with KScore; ret.mixload; ret }
 }
 
 
@@ -137,7 +139,7 @@ object KScore extends DynamicMixinCompanion[KScore] {
  *
  * @author Pascal Voitot [@_mandubian]
  */
-trait KFullScore extends KApi {
+/*trait KFullScore extends KApi {
   self: KBase =>
 
   private val URL_SHOW ="http://api.klout.com/1/users/show.%s?key=%s&users=%s"
@@ -436,14 +438,14 @@ trait KInfluencees extends KApi {
 object KInfluencees extends DynamicMixinCompanion[KInfluencees] {
   override def ::[T <: KBase](o: T)(implicit KLOUT_API_KEY: String):Mixin[T] with KInfluencees = { val ret = new Mixin(o) with KInfluencees; ret.load; ret }
 }
-
+*/
 /**
  *
  *The default Klout user with name (twitter_name) & a score
  *
  */
 case class KUser(override val name: String)(implicit KLOUT_API_KEY: String) extends KBase(name) with KScore {
-  load
+  load(Seq(name))
 }
 
 /**
@@ -451,9 +453,11 @@ case class KUser(override val name: String)(implicit KLOUT_API_KEY: String) exte
  *The full Klout user with name (twitter_name) & full score topics + influencers + influencees
  *
  */
+/*
 case class KFullUser(override val name: String)(implicit KLOUT_API_KEY: String) extends KBase(name) with KFullScore with KTopics with KInfluencers with KInfluencees {
   load
 }
+*/
 
 object KUsers {
   def apply(names: String*): List[KBase] = {
