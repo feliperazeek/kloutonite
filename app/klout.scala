@@ -14,17 +14,23 @@ import com.google.gson.JsonObject
  */
 abstract class KApi {
   protected[klout] def loadAndParse(patternUrl: String, format: Symbol = 'json, name: String)
-                                   (parser: (HttpResponse) => KBase)
+                                   (parser: (JsonObject) => Unit)
                                    (implicit KLOUT_API_KEY: String) = {
     val url = patternUrl.format(format.name, KLOUT_API_KEY, name)
     val resp = WS.url(url).get()
     resp.getStatus.intValue() match {
-      case 200 => parser(resp)
+      case 200 =>
+        val json = resp.getJson
+        val status = json.getAsJsonObject().get("status")
+        // TODO Status ERROR MANAGEMENT
+
+        val users = json.getAsJsonObject().get("users").getAsJsonArray
+        parser(users.get(0).getAsJsonObject)
       case _ => Nil // TODO
     }
   }
 
-  protected[klout] def loadAndParses(patternUrl:String, format:Symbol = 'json, names:Seq[String])
+  protected[klout] def loadAndParseMulti(patternUrl:String, format:Symbol = 'json, names:Seq[String])
                                    (parser: (JsonObject) => KBase)
                                    (implicit KLOUT_API_KEY: String):List[KBase] = {
     val url = patternUrl.format(format.name, KLOUT_API_KEY, names.mkString(","))
@@ -99,6 +105,7 @@ trait DynamicMixinCompanion[MixinTrait] {
   implicit def baseObject[MixedClass <: KDefault](o: Mixin[MixedClass] with MixinTrait): MixedClass = o.obj
 
   def ::[MixedClass <: KDefault](o: MixedClass)(implicit KLOUT_API_KEY: String):Mixin[MixedClass] with MixinTrait
+  def ::[MixedClass <: KDefault](o: List[MixedClass])(implicit KLOUT_API_KEY: String):List[Mixin[MixedClass] with MixinTrait]
 }
 
 /**
@@ -109,18 +116,21 @@ trait DynamicMixinCompanion[MixinTrait] {
 trait KScore extends KApi {
   self:KDefault =>
 
-  private val URL_SCORE = "http://api.klout.com/1/klout.%s?key=%s&users=%s"
-  private var isLoaded = false
+  val URL_SCORE = "http://api.klout.com/1/klout.%s?key=%s&users=%s"
+  var isLoaded = false
 
   private def parser = { user: JsonObject =>
     val name = user.get("twitter_screen_name").getAsString
     val score = user.get("kscore").getAsFloat
-
-    isLoaded = true
     KBase(name, score)
   }
 
-  abstract override def load(names:Seq[String])(implicit KLOUT_API_KEY:String):List[KBase] = { if(!isLoaded) loadAndParses(patternUrl = URL_SCORE, names = names)(parser); super.load(names) }
+  abstract override def load(names:Seq[String])(implicit KLOUT_API_KEY:String):List[KBase] = {
+    if(!isLoaded) {
+      val l = loadAndParses(patternUrl = URL_SCORE, names = names)(parser)
+    }
+    super.load(names)
+  }
   abstract override def reload(names:Seq[String])(implicit KLOUT_API_KEY:String):List[KBase] = { loadAndParses(patternUrl = URL_SCORE, names = names)(parser); super.load(names) }
 }
 
@@ -129,8 +139,14 @@ trait KScore extends KApi {
  *
  * @author Pascal Voitot [@_mandubian]
  */
-object KScore extends DynamicMixinCompanion[KScore] {
+object KScore extends DynamicMixinCompanion[KScore] with KApi {
   override def ::[T <: KDefault](o: T)(implicit KLOUT_API_KEY: String):Mixin[T] with KScore = { val ret = new Mixin(o) with KScore; ret.mixload; ret }
+  override def ::[T <: KDefault](o: List[T])(implicit KLOUT_API_KEY: String):List[Mixin[T] with KScore] = {
+    o.map( x => new Mixin(x) with KScore)
+    //val ret = new Mixin(o) with KScore; ret.mixload; ret
+  }
+  import KScore
+  def loadMulti[T <: KDefault](map:Map[String, Mixin[T] with KScore]) = { loadAndParses(patternUrl = KScore.URL_SCORE, names = names)(parser)}
 }
 
 
@@ -445,7 +461,10 @@ object KInfluencees extends DynamicMixinCompanion[KInfluencees] {
  *
  */
 case class KUser(override val name: String)(implicit KLOUT_API_KEY: String) extends KBase(name) with KScore {
-  load(Seq(name))
+  load(Seq(name)) match {
+    case KBase(_, s)::tail => score = s
+    case _ => // TODO
+  }
 }
 
 /**
