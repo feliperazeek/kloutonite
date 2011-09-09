@@ -167,15 +167,16 @@ object Klout extends Controller {
     def scores = {
       import scala.collection.mutable.Map
 
-      val users:Map[String, KUser] = KUsers("mandubian", "_felipera")
+      var users:Map[String, KUser] = KUsers("mandubian", "_felipera")
+      users = KUsers("mandubian", "_felipera") :: KScore
       Json(""" {"users": "%s"}""".format(users.foldLeft("")((a, t) => a + "{"+t._1+","+t._2.score+"}")))
     }
 
-    /*def fullscore(name: String) = {
-      val user = KUser(name) :: KFullScore
+    def fullscore(name: String) = {
+      val user = new KUser(name) with KFullScore
       Json(""" {"username": "%s", "fullscore":"%s"}""".format(user.name, user.fullscore))
     }
-
+    /*
     def topics(name: String) = {
       val user = KUser("mandubian") :: KTopics
       Json(""" {"username": "%s", "topics":"%s"}""".format(user.name, user.topics))
