@@ -19,7 +19,8 @@ class UserTest extends UnitTest with FlatSpec with ShouldMatchers {
      * Test for User.findOrCreate()
      */
     "Calling findOrCreate() twice on User" should "only create one record in the db" in {
-			val name = "some name"
+			val r = new Random
+			val name = r.nextInt.toString
 			val token = "token"
 			val secret = "secret"
 
@@ -33,14 +34,16 @@ class UserTest extends UnitTest with FlatSpec with ShouldMatchers {
      * Test for User.exist
      */
     "Calling exists() on User" should "be true if user is defined or false if otherwise" in {
-			val name = "some name"
+			val r = new Random
+			val name = r.nextInt.toString
 			val token = "token"
 			val secret = "secret"
 			
             val b1 = User.exists(name)
             (b1) should be (false)
 
-            User.findOrCreate(name, token, secret)
+            val c = User.findOrCreate(name, token, secret)
+			Logger.debug("Created: " + c)
 
             val b2 = User.exists(name)
             (b2) should be (true)

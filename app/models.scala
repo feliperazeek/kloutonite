@@ -36,14 +36,14 @@ object User extends Magic[User] {
     }
 
 
-    def findOrCreate(twitterHandle: String, token: String, secret: String): User = {
+    def findOrCreate(twitterHandle: String, token: String, secret: String): Long = {
         // Look for an existing user
         find("twitterHandle = {r}").on("r" -> twitterHandle).first() match {
 
             // Ok just return the user that was found
             case Some(o: User) => {
                 Logger.debug("Found User: " + o)
-                o
+                o.id.apply()
             }
 
             // Nothing was found
@@ -51,7 +51,7 @@ object User extends Magic[User] {
                 val o = new User(twitterHandle, token, secret)
                 val created = insert(o)
                 Logger.debug("Created User: " + created)
-                o
+                findOrCreate(o.twitterHandle, o.token, o.secret)
             }
         }
     }
