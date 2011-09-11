@@ -10,13 +10,13 @@ import play.Logger
 
 
 case class User(
-    val id: Long,
+    var id:Pk[Long],
     val twitterHandle: String,
     val token: String,
 	val secret: String) {
 
     def this(twitterHandle: String, token: String, secret: String) {
-        this (0, twitterHandle, token, secret)
+        this (NotAssigned, twitterHandle, token, secret)
     }
 }
 
@@ -27,7 +27,7 @@ object User extends Magic[User] {
 
     def exists(twitterHandle: String): Boolean = {
         val count: Long = SQL("select count(*) from User where twitterHandle = {u}")
-        .on("twitterHandle" -> twitterHandle)
+        .on("u" -> twitterHandle)
         .as(scalar[Long])
         count match {
             case count if count > 0 => true
@@ -38,7 +38,7 @@ object User extends Magic[User] {
 
     def findOrCreate(twitterHandle: String, token: String, secret: String): User = {
         // Look for an existing user
-        find("twitterHandle = {r}").on("twitterHandle" -> twitterHandle).first() match {
+        find("twitterHandle = {r}").on("r" -> twitterHandle).first() match {
 
             // Ok just return the user that was found
             case Some(o: User) => {
