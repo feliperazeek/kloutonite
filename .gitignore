@@ -10,3 +10,5 @@ eclipse
 commands.pyc
 *.iml
 .idea
+test-result
+
