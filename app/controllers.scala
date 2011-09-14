@@ -11,7 +11,7 @@ import org.scribe.model.Verifier
 import org.scribe.oauth.OAuth20ServiceImpl
 import org.scribe.oauth.OAuthService
 import oauth.{OAuthCallback, OAuthProvider}
-
+import scala.collection.JavaConversions._
 /**
  * Application Controller
  *
@@ -107,6 +107,7 @@ object OAuth extends Controller {
                     val secret: Option[Token] = Cache.get(oauthToken)
                     secret match {
                         case Some(s) => token = new Token(oauthToken, s.getSecret)
+                        case _ =>
                     }
                 }
 
@@ -165,21 +166,32 @@ object Klout extends Controller {
     }
 
     def scores = {
+      val names = params.get("names").split(",")
+
       import scala.collection.mutable.Map
 
-      var users:Map[String, KUser] = KUsers("mandubian", "_felipera")
-      users = KUsers("mandubian", "_felipera") :: KScore
+      var users = KUsers(names:_*)
       Json(""" {"users": "%s"}""".format(users.foldLeft("")((a, t) => a + "{"+t._1+","+t._2.score+"}")))
     }
 
     def fullscore(name: String) = {
-      val user = new KUser(name) with KFullScore
-      Json(""" {"username": "%s", "fullscore":"%s"}""".format(user.name, user.fullscore))
+      val user = KUser(name) :: KFullScore
+      Json(""" {"username": "%s", "score":"%f", "fullscore":"%s"}""".format(user.name, user.score, user.fullscore))
     }
-    /*
+
+    def fullscores(names: List[String]) = {
+      val names = params.get("names").split(",")
+
+      import scala.collection.mutable.{Map,HashMap}
+
+      val users = KUsers(names:_*):::KFullScore
+
+      Json(""" {"users": "%s"}""".format(users.foldLeft("")((a, t) => a + "{name:"+t._1+", score:"+t._2.score+", fullscore:"+t._2.fullscore+"}")))
+    }
+
     def topics(name: String) = {
       val user = KUser("mandubian") :: KTopics
-      Json(""" {"username": "%s", "topics":"%s"}""".format(user.name, user.topics))
+      Json(""" {"username": "%s", "score":"%s", "topics":"%s"}""".format(user.name, user.score, user.topics))
     }
 
     def influencers(name: String) = {
@@ -187,12 +199,26 @@ object Klout extends Controller {
       Json(""" {"username": "%s", "influencers":"%s"}""".format(user.name, user.influencers))
     }
 
+    def influencersMulti(name: String) = {
+      val names = params.get("names").split(",")
+
+      val users = KUsers(names:_*) ::: KInfluencers
+      Json(""" {"users": "%s"}""".format(users.foldLeft("")((a, t) => a + "{name:"+t._1+", score:"+t._2.score+", influencers:"+t._2.influencers+"}")))
+    }
+
     def influencees(name: String) = {
       val user = KUser(name) :: KInfluencees
       Json(""" {"username": "%s", "influencees":"%s"}""".format(user.name, user.influencees))
     }
 
+    def influenceesMulti(name: String) = {
+      val names = params.get("names").split(",")
 
+      val users = KUsers(names:_*) ::: KInfluencees
+      Json(""" {"users": "%s"}""".format(users.foldLeft("")((a, t) => a + "{name:"+t._1+", score:"+t._2.score+", influencers:"+t._2.influencees+"}")))
+    }
+
+    /*
     def full(name: String) = {
       val user = KFullUser(name)
       Json(""" {"username": "%s", "fullscore":"%s", "topics":"%s", "influencers":"%s", "influencees":"%s"}""".format(user.name, user.fullscore, user.topics, user.influencers, user.influencees))

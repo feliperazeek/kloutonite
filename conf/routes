@@ -5,6 +5,11 @@
 # Home page
 GET     /                                       Application.index
 
+GET     /klout/scores/{names}                   klout.scores
+GET     /klout/fullscores/{names}               klout.fullscores
+GET     /klout/influencers/{names}              klout.influencersMulti
+GET     /klout/influencees/{names}              klout.influenceesMulti
+
 GET     /klout/{name}/{action}                  klout.{action}
 
 # Ignore favicon requests
