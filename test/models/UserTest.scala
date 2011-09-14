@@ -1,12 +1,12 @@
 package models
 
 import java.util._
-import models._
 import play.Logger
 import play.test._
 import org.scalatest.junit._
 import org.scalatest._
 import org.scalatest.matchers._
+import models._
 
 /**
  * User Test Cases
