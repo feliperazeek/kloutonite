@@ -1,0 +1,14 @@
+14 Sep 2011 14:20:59,196 INFO  ~ Starting /home/pascal/workspaces/workspace_mandubian_scala/kloutonite
+14 Sep 2011 14:20:59,203 INFO  ~ Module scala is available (/home/pascal/work/mandubian/play/play-1.2.2/modules/scala-0.9.1)
+14 Sep 2011 14:21:01,849 INFO  ~ Scala support is active
+14 Sep 2011 14:21:01,850 WARN  ~ You're running Play! in DEV mode
+14 Sep 2011 14:21:01,961 INFO  ~ Listening for HTTP on port 9000 (Waiting a first request to start) ...
+14 Sep 2011 14:21:38,459 INFO  ~ Connected to jdbc:h2:mem:play;MODE=MYSQL;LOCK_MODE=0
+14 Sep 2011 14:21:38,494 INFO  ~ Application 'kloutonite' is now started !
+14 Sep 2011 14:21:50,558 INFO  ~ Automatically applying evolutions in in-memory database
+14 Sep 2011 14:21:56,652 DEBUG ~ Created User: MayErr(Right(false))
+14 Sep 2011 14:21:56,697 DEBUG ~ Found User: User(1,-1439216736,token,secret)
+14 Sep 2011 14:21:56,703 DEBUG ~ Found User: User(1,-1439216736,token,secret)
+14 Sep 2011 14:21:56,797 DEBUG ~ Created User: MayErr(Right(false))
+14 Sep 2011 14:21:56,804 DEBUG ~ Found User: User(2,-1067073850,token,secret)
+14 Sep 2011 14:21:56,804 DEBUG ~ Created: 2
