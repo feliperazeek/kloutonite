@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-
-<testsuite failures="0" time="0.343" errors="0" skipped="0" tests="2" name="models.UserTest">
-  <testcase classname="models.UserTest" name="Calling findOrCreate() twice on User should only create one record in the db" time="0.246">
-      </testcase>
-  <testcase classname="models.UserTest" name="Calling exists() on User should be true if user is defined or false if otherwise" time="0.097">
-      </testcase>
-</testsuite>
