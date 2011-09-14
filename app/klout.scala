@@ -5,19 +5,19 @@ import play.mvc._
 import play.libs.WS
 import play.libs.WS.HttpResponse
 import collection.mutable.ListBuffer
-import com.google.gson.JsonObject
 import scala.collection.mutable.{Map, HashMap}
+import com.google.gson.{JsonElement, JsonObject}
 
 
 /**
  * Lowest level class defining the load function
  *
- * @author Pascal Voitot [@_mandubian]
+ * @author Pascal Voitot [@mandubian]
  */
-abstract class KApi {
-  protected[klout] def loadAndParse[T <: KSingle](patternUrl: String, format: Symbol = 'json, user: T)
+trait KApi {
+  protected[klout] def loadAndParse[T <: KDefaultUser](patternUrl: String, format: Symbol = 'json, name:String)
                                    (implicit KLOUT_API_KEY: String) = {
-    val url = patternUrl.format(format.name, KLOUT_API_KEY, user.name)
+    val url = patternUrl.format(format.name, KLOUT_API_KEY, name)
     val resp = WS.url(url).get()
     resp.getStatus.intValue() match {
       case 200 =>
@@ -26,7 +26,7 @@ abstract class KApi {
         // TODO Status ERROR MANAGEMENT
 
         val users = json.getAsJsonObject().get("users").getAsJsonArray
-        user.parser(users.get(0).getAsJsonObject)
+        parse(users.get(0).getAsJsonObject)
       case _ => // TODO
     }
   }
@@ -34,8 +34,9 @@ abstract class KApi {
   /**
    * the protected function that can't be called from outside
    */
-  protected[klout] def load(implicit KLOUT_API_KEY:String) = {}
-  protected[klout] def parser(jsonUser:JsonObject) = {}
+  protected[klout] def load(implicit KLOUT_API_KEY:String)  = {}
+
+  protected[klout] def parse(jsonUser:JsonObject) = {}
 
   /**
    * the unprotected function that can be called from outside to force reload all data
@@ -43,9 +44,9 @@ abstract class KApi {
   protected[klout] def reload(implicit KLOUT_API_KEY:String) = {}
 }
 
-abstract class KApiMulti {
-   protected[klout] def loadAndParseMulti[T <: KSingle](patternUrl:String, format:Symbol = 'json, userMap:Map[String, T])
-                                   (implicit KLOUT_API_KEY: String) = {
+trait KApiMulti {
+  protected[klout] def loadAndParseMulti[T <: KDefaultUser](patternUrl:String, format:Symbol = 'json, userMap:Map[String, T])
+                                   (implicit KLOUT_API_KEY: String):Map[String, T] = {
     val url = patternUrl.format(format.name, KLOUT_API_KEY, userMap.keys.mkString(","))
     val resp = WS.url(url).get()
 
@@ -57,81 +58,60 @@ abstract class KApiMulti {
 
         val users = json.getAsJsonObject().get("users").getAsJsonArray
         for(i <- 0 until users.size){
-          val user = users.get(i).getAsJsonObject
-          val name = user.get("twitter_screen_name").getAsString
+          val jsonUser = users.get(i).getAsJsonObject
+          val name = jsonUser.get("twitter_screen_name").getAsString
           userMap.get(name) match {
-            case Some(kuser:KSingle) => kuser.parser(user)
+            case Some(kuser:T) => kuser.parse(jsonUser)
             case _ =>
           }
         }
-      case _ =>  // TODO
+        userMap
+      case _ => Map.empty // TODO
     }
   }
 
-  protected[klout] def loadMulti[T <: KSingle](userMap:Map[String, T])(implicit KLOUT_API_KEY:String) = {}
+  protected[klout] def loadMulti[T <: KDefaultUser](userMap:Map[String, T])(implicit KLOUT_API_KEY:String):Map[String, T] = { Map.empty }
 }
 
 /**
  * Base data from Klout (the name & the score)
  *
- * @author Pascal Voitot [@_mandubian]
+ * @author Pascal Voitot [@mandubian]
  */
-case class KSingle(val name: String, var score: Float = 0.0F) extends KApi {
-  //override def load(implicit KLOUT_API_KEY:String) = {}
-  //override def reload(implicit KLOUT_API_KEY:String) = {}
-  //override def loadMulti(userMap:Map[String,KSingle])(implicit KLOUT_API_KEY:String) = {}
-}
-
-
-/*class KMulti(val names:Seq[String]) extends KApi {
-  override def load(userMap:Map[String, KSingle])(implicit KLOUT_API_KEY:String):Map[String, KSingle] = new HashMap[String, KSingle]
-  override def reload(names:Seq[String])(implicit KLOUT_API_KEY:String):Map[String, KSingle] = new HashMap[String, KSingle]
-} */
+case class KDefaultUser(name:String) extends KApi
 
 /**
  * Klout Score API
  *
- * @author Pascal Voitot [@_mandubian]
+ * @author Pascal Voitot [@mandubian]
  */
 trait KScore extends KApi {
-  self:KSingle =>
-
-  val URL_SCORE = "http://api.klout.com/1/klout.%s?key=%s&users=%s"
+  self:KDefaultUser =>
 
   private var isLoaded = false
 
-  abstract override def parser(jsonUser:JsonObject) = { score = jsonUser.get("kscore").getAsFloat }
+  var score:Float = 0.0F
+
+  abstract override def parse(jsonUser:JsonObject) = {
+    Option(jsonUser.get("kscore")) match {
+      case Some(obj:JsonElement) => score = obj.getAsFloat
+      case _ =>
+    }
+  }
 
   abstract override def load(implicit KLOUT_API_KEY:String) = {
     if(!isLoaded) {
-      loadAndParse(patternUrl = URL_SCORE, user=this)
+      loadAndParse(patternUrl = KScore.URL, name = name)
       isLoaded = true
     }
     super.load
   }
 
   abstract override def reload(implicit KLOUT_API_KEY:String) = {
-    loadAndParse(patternUrl = URL_SCORE, user=this)
+    loadAndParse(patternUrl = KScore.URL, name = name)
     super.load
   }
-
-
 }
-
-trait KScoreMulti extends KApiMulti {
-  private var isLoaded = false
-
-  val URL_SCORE = "http://api.klout.com/1/klout.%s?key=%s&users=%s"
-
-  abstract override def loadMulti[T <: KSingle](userMap:Map[String, T])(implicit KLOUT_API_KEY:String) = {
-    if(!isLoaded) {
-      loadAndParseMulti(patternUrl = URL_SCORE, userMap=userMap)
-      isLoaded = true
-    }
-    super.loadMulti(userMap)
-  }
-}
-
 
 /**
  * Dynamic mixin trick directly inspired from http://stackoverflow.com/questions/3893274/scala-and-traits-on-object-instances
@@ -153,29 +133,46 @@ trait KScoreMulti extends KApiMulti {
  * etc...
 
  *
- * @author Pascal Voitot [@_mandubian]
+ * @author Pascal Voitot [@mandubian]
  */
-class Mixin[MixedClass <: KSingle](val obj: MixedClass) extends KSingle(obj.name)
+class Mixin[T <: KDefaultUser](val obj: T) extends KDefaultUser(obj.name) {
+  //override def load(implicit KLOUT_API_KEY:String) = obj.load
+  //override def parse(jsonUser:JsonObject) = obj.parse(jsonUser)
+}
+//class MixinMulti[T <: KDefaultUser](val obj: KDefaultUserMulti[T]) extends KDefaultUserMulti[T]
 
 trait DynamicMixinCompanion[MixinTrait] {
-  implicit def baseObject[MixedClass <: KSingle](o: Mixin[MixedClass] with MixinTrait): MixedClass = o.obj
+  implicit def baseObject[T <: KDefaultUser](o: Mixin[T] with MixinTrait):T = o.obj
 
-  def ::[MixedClass <: KSingle](o: MixedClass)(implicit KLOUT_API_KEY: String):Mixin[MixedClass] with MixinTrait
-  def ::[T <: KSingle](o: Map[String,T])(implicit KLOUT_API_KEY: String):Map[String, Mixin[T] with KScore]
+  def ::[T <: KDefaultUser](o: T)(implicit KLOUT_API_KEY: String):Mixin[T] with MixinTrait
+
+  def :::[T <: KDefaultUser](map:Map[String, T])(implicit KLOUT_API_KEY: String):Map[String, Mixin[T] with MixinTrait]
 }
-
 
 
 /**
  * Klout Score Companion object providing dynamic Mixin
  *
- * @author Pascal Voitot [@_mandubian]
+ * @author Pascal Voitot [@mandubian]
  */
-object KScore extends DynamicMixinCompanion[KScore] {
-  override def ::[T <: KSingle](o: T)(implicit KLOUT_API_KEY: String):Mixin[T] with KScore = { val ret = new Mixin(o) with KScore; ret.load(o.name); ret }
-  override def ::[T <: KSingle](o: Map[String,T])(implicit KLOUT_API_KEY: String):Map[String, Mixin[T] with KScore] = {
-    o.map{ case (str, user) => (str, new Mixin(user) with KScore) }
-    //val ret = new Mixin(o) with KScore; ret.mixload; ret
+object KScore extends DynamicMixinCompanion[KScore] with KApiMulti {
+  override def ::[T <: KDefaultUser](o: T)(implicit KLOUT_API_KEY: String):Mixin[T] with KScore = {
+    val ret = new Mixin(o) with KScore
+    ret.load(o.name)
+    ret
+  }
+
+  val URL = "http://api.klout.com/1/klout.%s?key=%s&users=%s"
+
+  override def :::[T <: KDefaultUser](map:Map[String, T])(implicit KLOUT_API_KEY: String):Map[String, Mixin[T] with KScore] = {
+    val map2 = map.map{ case (str, user) => (str , new Mixin(user) with KScore) }
+    val (str, user) = map2.head
+
+    loadAndParseMulti(patternUrl = URL, userMap=map2)
+  }
+
+  override def loadMulti[T <: KDefaultUser](userMap:Map[String, T])(implicit KLOUT_API_KEY:String):Map[String, T] = {
+    loadAndParseMulti(patternUrl = URL, userMap = userMap)
   }
 }
 
@@ -183,12 +180,11 @@ object KScore extends DynamicMixinCompanion[KScore] {
 /**
  * Klout FullScore API (calls show GET)
  *
- * @author Pascal Voitot [@_mandubian]
+ * @author Pascal Voitot [@mandubian]
  */
 trait KFullScore extends KApi {
-  self: KSingle =>
+  self: KDefaultUser =>
 
-  private val URL_SHOW ="http://api.klout.com/1/users/show.%s?key=%s&users=%s"
   private var isLoaded = false
 
   var twitter_id: String = ""
@@ -224,70 +220,87 @@ trait KFullScore extends KApi {
         }
     ]
   }*/
+  abstract override def parse(jsonUser:JsonObject) = {
+    Option(jsonUser.get("twitter_id")) match {
+      case Some(obj:JsonElement) =>
+        twitter_id = obj.getAsString
+        Option(jsonUser.get("twitter_screen_name")) match {
+          case Some(obj:JsonElement) =>
+            val twitter_screen_name = obj.getAsString
+            Option(jsonUser.get("score")) match {
+              case Some(obj:JsonElement) =>
+                val sc = obj.getAsJsonObject
+                fullscore = Score(
+                  sc.get("kscore").getAsFloat,
+                  sc.get("slope").getAsFloat,
+                  sc.get("description").getAsString,
+                  sc.get("kclass_id").getAsInt,
+                  sc.get("kclass").getAsString,
+                  sc.get("kclass_description").getAsString,
+                  sc.get("kscore_description").getAsString,
+                  sc.get("network_score").getAsFloat,
+                  sc.get("amplification_score").getAsFloat,
+                  sc.get("true_reach").getAsInt,
+                  sc.get("delta_1day").getAsFloat,
+                  sc.get("delta_5day").getAsFloat
+                )
 
-  override def parser(jsonUser:JsonObject) = {
-    twitter_id = jsonUser.get("twitter_id").getAsString
-    val twitter_screen_name = jsonUser.get("twitter_screen_name").getAsString
-    val sc = jsonUser.get("score").getAsJsonObject
-
-    fullscore = Score(
-        sc.get("kscore").getAsFloat,
-        sc.get("slope").getAsFloat,
-        sc.get("description").getAsString,
-        sc.get("kclass_id").getAsInt,
-        sc.get("kclass").getAsString,
-        sc.get("kclass_description").getAsString,
-        sc.get("kscore_description").getAsString,
-        sc.get("network_score").getAsFloat,
-        sc.get("amplification_score").getAsFloat,
-        sc.get("true_reach").getAsInt,
-        sc.get("delta_1day").getAsFloat,
-        sc.get("delta_5day").getAsFloat
-    )
-
-    isLoaded = true
+                isLoaded = true
+              case _ =>
+            }
+          case _ =>
+        }
+      case _ =>
+    }
   }
 
   abstract override def load(implicit KLOUT_API_KEY:String) = {
     if(!isLoaded) {
-      loadAndParse(patternUrl = URL_SHOW, user=this)
+      loadAndParse(patternUrl = KFullScore.URL, name = name)
       isLoaded = true
     }
     super.load(name)
   }
 
   override def reload(implicit KLOUT_API_KEY:String) = {
-    loadAndParse(patternUrl = URL_SHOW, user=this)
+    loadAndParse(patternUrl = KFullScore.URL, name = name)
     super.load(name)
   }
-
-  /*abstract override def loadMulti[T <: KSingle](userMap:Map[String, T])(implicit KLOUT_API_KEY:String) = {
-    if(!isLoaded) {
-      loadAndParseMulti(patternUrl = URL_SHOW, userMap=userMap)
-      isLoaded = true
-    }
-    super.loadMulti(userMap)
-  }*/
 }
-/*
+
 /**
  * Klout FullScore Companion object providing dynamic Mixin
  *
- * @author Pascal Voitot [@_mandubian]
+ * @author Pascal Voitot [@mandubian]
  */
-object KFullScore extends DynamicMixinCompanion[KFullScore] {
-  override def ::[T <: KBase](o: T)(implicit KLOUT_API_KEY: String):Mixin[T] with KFullScore = { val ret = new Mixin(o) with KFullScore; ret.load; ret }
+object KFullScore extends DynamicMixinCompanion[KFullScore] with KApiMulti {
+  val URL ="http://api.klout.com/1/users/show.%s?key=%s&users=%s"
+
+  override def ::[T <: KDefaultUser](o: T)(implicit KLOUT_API_KEY: String):Mixin[T] with KFullScore = {
+    val ret = new Mixin(o) with KFullScore
+    ret.load
+    ret
+  }
+
+  override def :::[T <: KDefaultUser](map:Map[String, T])(implicit KLOUT_API_KEY: String):Map[String, Mixin[T] with KFullScore] = {
+    loadMulti(map.map{ case (str, user) => (str , new Mixin(user) with KFullScore) })
+  }
+
+  override def loadMulti[T <: KDefaultUser](userMap:Map[String, T])(implicit KLOUT_API_KEY:String):Map[String, T] = {
+    loadAndParseMulti(patternUrl = URL, userMap = userMap)
+  }
+
 }
+
 
 /**
  * Klout Topics API
  *
- * @author Pascal Voitot [@_mandubian]
+ * @author Pascal Voitot [@mandubian]
  */
 trait KTopics extends KApi {
-  self: KBase =>
+  self: KDefaultUser =>
 
-  private val URL_TOPICS ="http://api.klout.com/1/users/topics.%s?key=%s&users=%s"
   private var isLoaded = false
 
   var topics: ListBuffer[String] = new ListBuffer[String]
@@ -308,51 +321,73 @@ trait KTopics extends KApi {
         }
     ]
   }*/
+  abstract override def parse(jsonUser:JsonObject) = {
+    Option(jsonUser.get("twitter_screen_name")) match {
+      case Some(obj:JsonElement) =>
+        val twitter_screen_name = obj.getAsString
 
-  private def parser = {  resp: HttpResponse =>
-    val json = resp.getJson
-    val status = json.getAsJsonObject().get("status")
-    val users = json.getAsJsonObject().get("users").getAsJsonArray
-    val user = users.get(0).getAsJsonObject
-
-    val twitter_screen_name = user.get("twitter_screen_name").getAsString
-    val ts = user.get("topics").getAsJsonArray
-    for(val i <- 1 until ts.size){
-      topics += ts.get(i).getAsString
+        Option(jsonUser.get("topics")) match {
+          case Some(obj:JsonElement) =>
+            val ts = obj.getAsJsonArray
+            for(val i <- 1 until ts.size){
+              topics += ts.get(i).getAsString
+            }
+            isLoaded = true
+          case _ =>
+        }
+      case _ =>
     }
-    isLoaded = true
-
-    this
   }
 
-  abstract override def load(implicit KLOUT_API_KEY: String) = { if(!isLoaded) loadAndParse(patternUrl = URL_TOPICS, name = self.name)(parser); super.load }
+  abstract override def load(implicit KLOUT_API_KEY:String) = {
+    if(!isLoaded) {
+      loadAndParse(patternUrl = KTopics.URL, name = name)
+      isLoaded = true
+    }
+    super.load(name)
+  }
 
-  abstract override def reload(implicit KLOUT_API_KEY: String) = { loadAndParse(patternUrl = URL_TOPICS, name = self.name)(parser); super.load }
-
-
+  override def reload(implicit KLOUT_API_KEY:String) = {
+    loadAndParse(patternUrl = KTopics.URL, name = name)
+    super.load(name)
+  }
 }
 
 /**
  * Klout Topics Companion object providing dynamic Mixin
  *
- * @author Pascal Voitot [@_mandubian]
+ * @author Pascal Voitot [@mandubian]
  */
-object KTopics extends DynamicMixinCompanion[KTopics] {
-  override def ::[T <: KBase](o: T)(implicit KLOUT_API_KEY: String):Mixin[T] with KTopics = { val ret = new Mixin(o) with KTopics; ret.load; ret }
+object KTopics extends DynamicMixinCompanion[KTopics] with KApiMulti {
+  val URL ="http://api.klout.com/1/users/topics.%s?key=%s&users=%s"
+
+  override def ::[T <: KDefaultUser](o: T)(implicit KLOUT_API_KEY: String):Mixin[T] with KTopics = {
+    val ret = new Mixin(o) with KTopics
+    ret.load
+    ret
+  }
+
+  override def :::[T <: KDefaultUser](map:Map[String, T])(implicit KLOUT_API_KEY: String):Map[String, Mixin[T] with KTopics] = {
+    loadMulti(map.map{ case (str, user) => (str , new Mixin(user) with KTopics) })
+  }
+
+  override def loadMulti[T <: KDefaultUser](userMap:Map[String, T])(implicit KLOUT_API_KEY:String):Map[String, T] = {
+    loadAndParseMulti(patternUrl = URL, userMap = userMap)
+  }
 }
+
 
 /**
  * Klout Influencers API (calls influenced_by)
  *
- * @author Pascal Voitot [@_mandubian]
+ * @author Pascal Voitot [@mandubian]
  */
 trait KInfluencers extends KApi {
-  self: KBase =>
+  self: KDefaultUser =>
 
-  private val URL_INFLUENCERS ="http://api.klout.com/1/soi/influenced_by.%s?key=%s&users=%s"
   private var isLoaded = false
 
-  var influencers = new ListBuffer[KBase]
+  var influencers = ListBuffer.empty[KDefaultUser]
 
   /* Samples
   {
@@ -386,50 +421,78 @@ trait KInfluencers extends KApi {
         }
     ]
   }*/
-  private def parser = { resp: HttpResponse =>
-    val json = resp.getJson
-    val status = json.getAsJsonObject().get("status")
-    val users = json.getAsJsonObject().get("users").getAsJsonArray
-    val user = users.get(0).getAsJsonObject
+  abstract override def parse(jsonUser:JsonObject) = {
+    Option(jsonUser.get("twitter_screen_name")) match {
+      case Some(obj:JsonElement) =>
+        val twitter_screen_name = obj.getAsString
+        Option(jsonUser.get("influencers")) match {
+          case Some(obj: JsonElement) =>
+            val infs = obj.getAsJsonArray
 
-    val twitter_screen_name = user.get("twitter_screen_name").getAsString
-    val infs = user.get("influencers").getAsJsonArray
-    for(val i <- 1 until infs.size){
-      val inf = infs.get(i).getAsJsonObject
-      influencers += KBase(inf.get("twitter_screen_name").getAsString, inf.get("kscore").getAsFloat)
+            for(val i <- 1 until infs.size){
+              val inf = infs.get(i).getAsJsonObject
+              val user = new KDefaultUser(inf.get("twitter_screen_name").getAsString) with KScore
+              user.score = inf.get("kscore").getAsFloat
+              influencers += user
+            }
+            isLoaded = true
+          case _ =>
+        }
+      case _ =>
     }
-    isLoaded = true
-
-    this
   }
 
-  abstract override def load(implicit KLOUT_API_KEY: String) = { if(!isLoaded) loadAndParse(patternUrl = URL_INFLUENCERS, name = self.name)(parser); super.load }
+  abstract override def load(implicit KLOUT_API_KEY:String) = {
+    if(!isLoaded) {
+      loadAndParse(patternUrl = KInfluencers.URL, name = name)
+      isLoaded = true
+    }
+    super.load(name)
+  }
 
-  abstract override def reload(implicit KLOUT_API_KEY: String) = { loadAndParse(patternUrl = URL_INFLUENCERS, name = self.name)(parser); super.load }
-
+  override def reload(implicit KLOUT_API_KEY:String) = {
+    loadAndParse(patternUrl = KInfluencers.URL, name = name)
+    super.load(name)
+  }
 }
 
 /**
  * Klout Influencers Companion object providing dynamic Mixin
  *
- * @author Pascal Voitot [@_mandubian]
+ * @author Pascal Voitot [@mandubian]
  */
-object KInfluencers extends DynamicMixinCompanion[KInfluencers] {
-  override def ::[T <: KBase](o: T)(implicit KLOUT_API_KEY: String):Mixin[T] with KInfluencers = { val ret = new Mixin(o) with KInfluencers; ret.load; ret }
+object KInfluencers extends DynamicMixinCompanion[KInfluencers] with KApiMulti {
+  val URL ="http://api.klout.com/1/soi/influenced_by.%s?key=%s&users=%s"
+
+  override def ::[T <: KDefaultUser](o: T)(implicit KLOUT_API_KEY: String):Mixin[T] with KInfluencers = {
+    val ret = new Mixin(o) with KInfluencers
+    ret.load
+    ret
+  }
+
+  override def :::[T <: KDefaultUser](map:Map[String, T])(implicit KLOUT_API_KEY: String):Map[String, Mixin[T] with KInfluencers] = {
+    loadMulti(map.map{ case (str, user) => (str , new Mixin(user) with KInfluencers) })
+  }
+
+  override def loadMulti[T <: KDefaultUser](userMap:Map[String, T])(implicit KLOUT_API_KEY:String):Map[String, T] = {
+    loadAndParseMulti(patternUrl = URL, userMap = userMap)
+  }
 }
+
+
 
 /**
  * Klout Influencees API (calls influencer_of)
  *
- * @author Pascal Voitot [@_mandubian]
+ * @author Pascal Voitot [@mandubian]
  */
 trait KInfluencees extends KApi {
-  self: KBase =>
+  self: KDefaultUser =>
 
   private val URL_INFLUENCEES = "http://api.klout.com/1/soi/influencer_of.%s?key=%s&users=%s"
   private var isLoaded = false
 
-  var influencees = new ListBuffer[KBase]
+  var influencees = ListBuffer.empty[KDefaultUser]
 
   /* Samples
   {
@@ -462,45 +525,72 @@ trait KInfluencees extends KApi {
         }
     ]
   }*/
-  private def parser = { resp: HttpResponse =>
-    val json = resp.getJson
-    val status = json.getAsJsonObject().get("status")
-    val users = json.getAsJsonObject().get("users").getAsJsonArray
-    val user = users.get(0).getAsJsonObject
+  abstract override def parse(jsonUser:JsonObject) = {
+    Option(jsonUser.get("twitter_screen_name")) match {
+      case Some(obj:JsonElement) =>
+        val twitter_screen_name = obj.getAsString
+        Option(jsonUser.get("influencees")) match {
+          case Some(obj: JsonElement) =>
+            val infs = obj.getAsJsonArray
 
-    val twitter_screen_name = user.get("twitter_screen_name").getAsString
-    val infs = user.get("influencees").getAsJsonArray
-    for(val i <- 1 until infs.size){
-      val inf = infs.get(i).getAsJsonObject
-      influencees += KBase(inf.get("twitter_screen_name").getAsString, inf.get("kscore").getAsFloat)
+            for(val i <- 1 until infs.size){
+              val inf = infs.get(i).getAsJsonObject
+              val user = new KDefaultUser(inf.get("twitter_screen_name").getAsString) with KScore
+              user.score = inf.get("kscore").getAsFloat
+              influencees += user
+            }
+            isLoaded = true
+          case _ =>
+        }
+      case _ =>
     }
-    isLoaded = true
-
-    this
   }
 
-  abstract override def load(implicit KLOUT_API_KEY: String) = { if(!isLoaded) loadAndParse(patternUrl = URL_INFLUENCEES, name = self.name)(parser); super.load }
+  abstract override def load(implicit KLOUT_API_KEY:String) = {
+    if(!isLoaded) {
+      loadAndParse(patternUrl = KInfluencees.URL, name = name)
+      isLoaded = true
+    }
+    super.load(name)
+  }
 
-  abstract override def reload(implicit KLOUT_API_KEY: String) = { loadAndParse(patternUrl = URL_INFLUENCEES, name = self.name)(parser); super.load }
-
+  override def reload(implicit KLOUT_API_KEY:String) = {
+    loadAndParse(patternUrl = KInfluencees.URL, name = name)
+    super.load(name)
+  }
 }
 
 /**
  * Klout Influencees Companion object providing dynamic Mixin
  *
- * @author Pascal Voitot [@_mandubian]
+ * @author Pascal Voitot [@mandubian]
  */
-object KInfluencees extends DynamicMixinCompanion[KInfluencees] {
-  override def ::[T <: KBase](o: T)(implicit KLOUT_API_KEY: String):Mixin[T] with KInfluencees = { val ret = new Mixin(o) with KInfluencees; ret.load; ret }
+object KInfluencees extends DynamicMixinCompanion[KInfluencees] with KApiMulti {
+  val URL = "http://api.klout.com/1/soi/influencer_of.%s?key=%s&users=%s"
+
+  override def ::[T <: KDefaultUser](o: T)(implicit KLOUT_API_KEY: String):Mixin[T] with KInfluencees = {
+    val ret = new Mixin(o) with KInfluencees
+    ret.load
+    ret
+  }
+
+  override def :::[T <: KDefaultUser](map:Map[String, T])(implicit KLOUT_API_KEY: String):Map[String, Mixin[T] with KInfluencees] = {
+    loadMulti(map.map{ case (str, user) => (str , new Mixin(user) with KInfluencees) })
+  }
+
+  override def loadMulti[T <: KDefaultUser](userMap:Map[String, T])(implicit KLOUT_API_KEY:String):Map[String, T] = {
+    loadAndParseMulti(patternUrl = URL, userMap = userMap)
+  }
 }
-*/
+
 
 /**
  *
  *The default Klout user with name (twitter_name) & a score
  *
  */
-case class KUser(override val name:String)(implicit KLOUT_API_KEY: String, multi:Boolean = false) extends KSingle(name) with KScore {
+case class KUser(override val name:String)(implicit KLOUT_API_KEY: String, multi:Boolean = false)
+  extends KDefaultUser(name) with KScore {
   if(!multi) load
 }
 
@@ -515,12 +605,15 @@ case class KFullUser(override val name: String)(implicit KLOUT_API_KEY: String) 
 }
 */
 
-object KUsers extends KApiMulti with KScoreMulti {
+/*class KUsers[T <: KDefaultUser](override val map:Map[String, T])(implicit KLOUT_API_KEY: String)
+  extends KDefaultUserMulti[T](map) with KScoreMulti {
+}*/
 
-  def apply(names: String*)(implicit KLOUT_API_KEY: String, multi:Boolean = true): Map[String, KUser] = {
+object KUsers {
+  def apply(names:String*)(implicit KLOUT_API_KEY: String, multi:Boolean = true):Map[String, KUser] = {
+    //new KUsers[KUser](HashMap.empty[String, KUser] ++ names.map(name => (name, new KUser(name))))
     val map = HashMap.empty[String, KUser] ++ names.map(name => (name, new KUser(name)))
-    loadMulti(map)
-    map
+    KScore.loadMulti(map)
   }
 }
 
